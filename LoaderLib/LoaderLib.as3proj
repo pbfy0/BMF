@@ -4,18 +4,18 @@
   <output>
     <movie outputType="CustomBuild" />
     <movie input="" />
-    <movie path="bin\{Build}\BMLLib.swc" />
+    <movie path="bin\{Build}\LoaderLib.swc" />
     <movie fps="0" />
     <movie width="0" />
     <movie height="0" />
-    <movie version="18" />
+    <movie version="21" />
     <movie minorVersion="0" />
     <movie platform="AIR" />
     <movie background="#FFFFFF" />
   </output>
   <!-- Other classes to be compiled into your SWF -->
   <classpaths>
-    <class path="..\ModLoader\src" />
+    <class path="..\Loader\src" />
   </classpaths>
   <!-- Build options -->
   <build>
@@ -52,12 +52,11 @@
   </includeLibraries>
   <!-- SWC Libraries -->
   <libraryPaths>
-    <element path="..\extern\SWFWireDecompiler-1.3.swc" />
+    <!-- example: <element path="..." /> -->
   </libraryPaths>
   <!-- External Libraries -->
   <externalLibraryPaths>
-    <element path="..\LibBH\bin\Release\LibBH.swc" />
-    <element path="..\LoaderLib\bin\Release\LoaderLib.swc" />
+    <element path="..\extern\SWFWireDecompiler-1.3.swc" />
   </externalLibraryPaths>
   <!-- Runtime Shared Libraries -->
   <rslPaths>

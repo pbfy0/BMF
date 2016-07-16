@@ -2,20 +2,20 @@
 <project version="2">
   <!-- Output SWF options -->
   <output>
-    <movie outputType="CustomBuild" />
+    <movie outputType="Application" />
     <movie input="" />
-    <movie path="bin\{Build}\BMLLib.swc" />
-    <movie fps="0" />
-    <movie width="0" />
-    <movie height="0" />
-    <movie version="18" />
+    <movie path="bin\bml-core.swf" />
+    <movie fps="30" />
+    <movie width="800" />
+    <movie height="600" />
+    <movie version="21" />
     <movie minorVersion="0" />
     <movie platform="AIR" />
     <movie background="#FFFFFF" />
   </output>
   <!-- Other classes to be compiled into your SWF -->
   <classpaths>
-    <class path="..\ModLoader\src" />
+    <class path="src" />
   </classpaths>
   <!-- Build options -->
   <build>
@@ -73,21 +73,21 @@
   </library>
   <!-- Class files to compile (other referenced classes will automatically be included) -->
   <compileTargets>
-    <!-- example: <compile path="..." /> -->
+    <compile path="src\BML\ModLoader.as" />
   </compileTargets>
   <!-- Paths to exclude from the Project Explorer tree -->
   <hiddenPaths>
     <hidden path="obj" />
   </hiddenPaths>
   <!-- Executed before build -->
-  <preBuildCommand>"$(BaseDir)\Tools\swcbuild\swcbuild.exe" "$(ProjectPath)" "-compiler=$(CompilerPath)" "-debug=$(BuildConfig)" "-library=C:\Program Files (x86)\FlashDevelop\Library" -asdoc=true -keep-asdoc=false</preBuildCommand>
+  <preBuildCommand />
   <!-- Executed after build -->
   <postBuildCommand alwaysRun="False" />
   <!-- Other project options -->
   <options>
     <option showHiddenPaths="False" />
-    <option testMovie="Unknown" />
-    <option testMovieCommand="" />
+    <option testMovie="Custom" />
+    <option testMovieCommand="bat\RunApp.bat" />
   </options>
   <!-- Plugin storage -->
   <storage />

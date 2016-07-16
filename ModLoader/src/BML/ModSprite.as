@@ -12,9 +12,11 @@ package BML
 	public class ModSprite extends Sprite 
 	{
 		
-		internal var _game:Object;
-		internal var _main:Sprite;
-		internal var _brawlhalla:MovieClip;
+		//internal var _game:Game;
+		//internal var _main:_bh_Main;
+		//internal var _brawlhalla:Brawlhalla;
+		
+		internal var _ml:ModLoader;
 		
 		public function ModSprite() 
 		{
@@ -31,23 +33,27 @@ package BML
 		}
 		
 		protected function log(s:String) : void {
-			Loader.Log("[" + mod_name + "] " + s);
+			_ml.log("[" + mod_name + "] " + s);
 		}
 		
 		protected function Init() : void {
 			// meant to be overridden
 		}
 		
-		protected function get game() : Object {
-			return _game;
+		protected function get game() : Game {
+			return _ml.game;
 		}
 		
-		protected function get main() : Sprite {
-			return _main;
+		protected function get main() : _bh_Main {
+			return _ml.bhmain;
 		}
 		
-		protected function get brawlhalla() : MovieClip {
-			return _brawlhalla;
+		protected function get brawlhalla() : Brawlhalla {
+			return _ml.brawlhalla;
+		}
+		
+		protected function resolve_symbol(s:String) : String {
+			return _ml.resolve_symbol(s);
 		}
 	
 	}

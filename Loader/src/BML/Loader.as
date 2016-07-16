@@ -1,5 +1,18 @@
 package BML
 {
+	import com.swfwire.decompiler.AsyncSWFReader;
+	import com.swfwire.decompiler.AsyncSWFWriter;
+	import com.swfwire.decompiler.SWFByteArray;
+	import com.swfwire.decompiler.abc.ABCFile;
+	import com.swfwire.decompiler.abc.tokens.MultinameToken;
+	import com.swfwire.decompiler.abc.tokens.StringToken;
+	import com.swfwire.decompiler.abc.tokens.multinames.IMultiname;
+	import com.swfwire.decompiler.data.swf.SWF;
+	import com.swfwire.decompiler.data.swf.tags.SWFTag;
+	import com.swfwire.decompiler.data.swf9.tags.DoABCTag;
+	import com.swfwire.decompiler.events.AsyncSWFReaderEvent
+	import com.swfwire.decompiler.events.AsyncSWFWriterEvent;
+	import com.swfwire.decompiler.data.swf.SWFHeader;
 	import flash.desktop.NativeApplication;
 	import flash.display.DisplayObject;
 	import flash.display.LoaderInfo;
@@ -15,7 +28,12 @@ package BML
 	import flash.filesystem.FileStream;
 	import flash.filesystem.FileMode;
 	import flash.utils.*;
+	import flash.net.URLLoader;
+	import flash.net.URLLoaderDataFormat;
 	import flash.net.URLRequest;
+	import flash.system.LoaderContext;
+	import flash.system.ApplicationDomain;
+	import flash.system.SecurityDomain;
 	
 	/**
 	 * ...
@@ -29,26 +47,15 @@ package BML
 		internal static function Log(e:String) : void {
 			if(instance) instance.log(e);
 		}
-
-		private static function endsWith(input:String, suffix:String):Boolean {
-			return (suffix == input.substring(input.length - suffix.length));
-		}
 		
 		private var log_f:FileStream;
 		private var brawlhalla:MovieClip;
-		private var bhmain:Sprite;
-		private var game:Object;
-		private var mod_list:Vector.<ModSprite>;
+		private var modloader:Sprite;
 		private var error_count:uint = 0;
+		private var name_mapping:Object;
+		private var swf_mod_date:Date;
+		private var cachedir:File;
 		
-		//private static const STAGE3DMANAGER_INSTANCE:String = " \"I"; // Stage3dManager.instance
-		//private static const STAGE3DMANAGER_STAGE:String = "`!y"; // s3dm.stage
-		//private static const BRAWLHALLA_MAIN:String = " \"L"; // brawlhalla.main
-		private static const CLASS_MAIN:String = "5\"r";// (Main)
-		private static const MAIN_GAME:String = " m"; // main.game
-		private static const MAIN_NOERRORS:String = "-!O"; // main.noErrors
-		//private static const CLASS_DEVICEMANAGER:String = "'\"Z"; // (DeviceManager)
-		//private static const DEVICEMANAGER_CONTROLLERS:String = ";!"; // (DeviceManager).controllers<!#
 
 		public function Loader() 
 		{
@@ -74,7 +81,7 @@ package BML
 			}
 		}
 		
-		private function log(s : String) : void {
+		internal function log(s : String) : void {
 			this.log_f.writeUTFBytes(s + "\n");
 		}
 		
@@ -84,92 +91,183 @@ package BML
 		
 		private function handle_error(err : Error) : void {
 			log_error(err);
-			//log_f.close();
-			if (bhmain != null && bhmain[MAIN_NOERRORS] is Boolean && error_count < 10){
-				bhmain[MAIN_NOERRORS] = false;
-				error_count++;
-			} else {
-				NativeApplication.nativeApplication.exit();
-			}
+			NativeApplication.nativeApplication.exit();
+		}
+		
+		private function download_nm() : void {
+			
+		}
+		
+		internal function resolve_symbol(s:String) : String {
+			return name_mapping[s] as String;
 		}
 
 		private function main() : void {
+			
+			name_mapping = new Object();
+			var nmf:File = File.applicationStorageDirectory.resolvePath("bh_map.txt");
+			if(nmf.exists){
+				var q:FileStream = new FileStream();
+				q.open(nmf, FileMode.READ);
+				var s:String = q.readUTFBytes(q.bytesAvailable);
+				q.close();
+				for each(var l:String in s.split("\n")){
+					var a:Array = l.split("\t");
+					name_mapping[a[0]] = a[1];
+				}
+			}else{
+				download_nm();
+			}
+			//name_mapping["Main"] = "5\"r";
+			//name_mapping["game"] = " m";
+			//name_mapping["noerr"] = "-!O";
+			//name_mapping["playername"] = "-#t";
+			
+			var f:File = new File();
+			f.url = stage.loaderInfo.url;
+			swf_mod_date = f.modificationDate;
+			
+			cachedir = File.applicationStorageDirectory.resolvePath("mod_cache");
+			if (!cachedir.exists) cachedir.createDirectory();
+			
 			root.loaderInfo.uncaughtErrorEvents.addEventListener("uncaughtError", function(ev:UncaughtErrorEvent) : void {
 				ev.stopImmediatePropagation();
 				ev.preventDefault();
 				handle_error(ev.error);
-			}, false, 10);
+			}, false, 1);
 			
-			stage.nativeWindow.addEventListener(Event.CLOSING, function(ev:Event) : void {
-				var f:File = File.applicationStorageDirectory.resolvePath("cdsnt.dat");
-				if (f.exists) f.deleteFile();
-			});
 			
-			var bhc:Class = getDefinitionByName("Brawlhalla") as Class;
-			brawlhalla = new bhc as MovieClip;
-			var t:uint;
-			var h:Function = function(ev:Event) : void {
-				if (getQualifiedClassName(ev.target) == CLASS_MAIN){
-					clearTimeout(t);
-					stage.removeEventListener(Event.ADDED, h);
-					bhmain = ev.target as Sprite;
-					var h2:Function = function(ev:Event) : void {
-						if (getQualifiedClassName(ev.target) == "a_ScreenLoading") {
-							stage.removeEventListener(Event.ADDED, h2);
-							game = bhmain[MAIN_GAME];
-							log("got Game: " + game);
-							register_mods();
-						}
-					}
-					stage.addEventListener(Event.ADDED, h2);
-				}
-			}
-			t = setTimeout(function() : void {
-				log("Main not found within 10 seconds");
-				log("Brawlhalla likely updated");
-				stage.removeEventListener(Event.ADDED, h);
-			}, 10000);
-			stage.addEventListener(Event.ADDED, h);
-			stage.addChild(brawlhalla);
-			
-			load_mods();
-		}
-		
-		private function load_mods() : void {
-			var md:File = File.applicationDirectory.resolvePath("mods");
-			mod_list = new Vector.<ModSprite>;
+			var md:File = File.applicationDirectory.resolvePath("mods").resolvePath("bml-core.swf");
 			if (!md.exists){
-				log("Mods directory does not exist - mods can't be loaded");
+				log("core.swf not found - can't load");
+				log("attempting to launch brawlhalla");
+				var bhc:Class = getDefinitionByName("Brawlhalla") as Class;
+				brawlhalla = new bhc as MovieClip;
+				stage.addChild(brawlhalla);
 				return;
 			}
-			for each(var fl:File in md.getDirectoryListing()) {
-				if (!fl.isDirectory && endsWith(fl.name, ".swf")) {
-					(function() : void {
-						log("Loading mod: " + fl.name);
-						var loader:flash.display.Loader = new flash.display.Loader();
-						loader.contentLoaderInfo.addEventListener(Event.COMPLETE, function(ev:Event) : void {
-							var li:LoaderInfo = ev.target as LoaderInfo;
-							var ms:ModSprite = li.content as ModSprite
-							mod_list.push(ms);
-						});
-						loader.load(new URLRequest(fl.url));
-					})();
-				}
-			}
+			var _this:Loader = this;
+			transform_and_load(md, function(core:Sprite) : void {
+				modloader = core;
+				modloader["loader"] = _this;
+				stage.addChild(modloader);
+			}, true);
 		}
 		
-		private function register_mods() : void {
-			for each(var m:ModSprite in mod_list) {
-				register(m);
-			}
+		private function internal_resolve_symbols() : void {
+			
 		}
-
-		private function register(spr:ModSprite) : void {
-			log("Registering mod: " + spr.mod_name);
-			spr._game = game;
-			spr._brawlhalla = brawlhalla;
-			spr._main = bhmain;
-			addChild(spr);
+		
+		private function abc_mod(fn:File, mcb:Function, ccb:Function) : void {
+			var ul:URLLoader = new URLLoader();
+			ul.dataFormat = URLLoaderDataFormat.BINARY;
+			ul.addEventListener(Event.COMPLETE, function(ev:Event) : void {
+				var d:ByteArray = ev.target.data as ByteArray;
+				var reader:AsyncSWFReader = new AsyncSWFReader();
+				reader.addEventListener(AsyncSWFReaderEvent.READ_COMPLETE, function(ev:AsyncSWFReaderEvent) : void {
+					var s:SWF = ev.result.swf;
+					for each(var t:SWFTag in s.tags) {
+						if (t is DoABCTag) {
+							var abct:DoABCTag = t as DoABCTag;
+							var abc:ABCFile = abct.abcFile;
+							mcb(abc);
+						}
+					}
+					var sw:AsyncSWFWriter = new AsyncSWFWriter();
+					sw.addEventListener(AsyncSWFWriterEvent.WRITE_COMPLETE, function(ev:AsyncSWFWriterEvent) : void {
+						var b:ByteArray = ev.result.bytes;
+						ccb(b);
+					});
+					sw.write(s);
+				});
+				reader.read(new SWFByteArray(d));
+			});
+			ul.load(new URLRequest(fn.url));
+		}
+		
+		internal function transform_and_load(fn:File, callback:Function, core:Boolean = false) : void {
+			var cache:File = cachedir.resolvePath(fn.name);
+			var loadBytes:Function = function(cc:ByteArray) : void {
+				var l:flash.display.Loader = new flash.display.Loader();
+				l.contentLoaderInfo.addEventListener(Event.COMPLETE, function(ev:Event) : void {
+					var li:LoaderInfo = ev.target as LoaderInfo;
+					callback(li.content);
+				});
+				var lc:LoaderContext = new LoaderContext();
+				if (core) lc.applicationDomain = ApplicationDomain.currentDomain;
+				//lc.securityDomain = SecurityDomain.currentDomain;
+				lc.allowCodeImport = true;
+				l.loadBytes(cc, lc);
+			};
+			
+			if (cache.exists && cache.modificationDate.getTime() > fn.modificationDate.getTime() && cache.modificationDate.getTime() > swf_mod_date.getTime()) {
+				// we don't need no security model!
+				var ul:URLLoader = new URLLoader();
+				ul.dataFormat = URLLoaderDataFormat.BINARY;
+				ul.addEventListener(Event.COMPLETE, function(ev:Event) : void {
+					var d:ByteArray = ev.target.data as ByteArray;
+					loadBytes(d);
+				});
+				ul.load(new URLRequest(cache.url));
+				return;
+			}
+			log("Patching mod: " + fn.name);
+			var ul:URLLoader = new URLLoader();
+			ul.dataFormat = URLLoaderDataFormat.BINARY;
+			ul.addEventListener(Event.COMPLETE, function(ev:Event) : void {
+				var d:ByteArray = ev.target.data as ByteArray;
+				var reader:AsyncSWFReader = new AsyncSWFReader();
+				reader.addEventListener(AsyncSWFReaderEvent.READ_COMPLETE, function(ev:AsyncSWFReaderEvent) : void {
+					var s:SWF = ev.result.swf;
+					for each(var t:SWFTag in s.tags) {
+						if (t is DoABCTag) {
+							var abct:DoABCTag = t as DoABCTag;
+							var abc:ABCFile = abct.abcFile;
+							var multiname_sts:Dictionary = new Dictionary();
+							/*for each(var st:StringToken in abc.cpool.strings) { // this version remaps all strings
+								if (st.utf8.indexOf("_bh_") == 0){
+									var n:String = st.utf8.substr(4);
+									if (n in name_mapping && name_mapping[n] is String){
+										//log("remapping \"" + st.utf8 + "\" to \"" + name_mapping[n] + "\"")
+										st.utf8 = name_mapping[n];
+									}
+								}
+							}*/
+							for each(var m:MultinameToken in abc.cpool.multinames) {
+								var d:IMultiname = m.data;
+								if (d != null && "name" in d) {
+									var st:StringToken = abc.cpool.strings[d["name"]]
+									if (st.utf8.indexOf("_bh_") == 0){
+										var n:String = st.utf8.substr(4);
+										if (n in name_mapping && name_mapping[n] is String) multiname_sts[st] = n;
+									}
+								}
+							}
+							for (var sto:Object in multiname_sts) {
+								var v:String = multiname_sts[sto] as String;
+								if (v == null) continue;
+								var st:StringToken = sto as StringToken;
+								//log("remapping \"" + v + "\" to \"" + name_mapping[v] + "\"")
+								st.utf8 = name_mapping[v];
+							}
+						}
+					}
+					//s.header.signature = SWFHeader.UNCOMPRESSED_SIGNATURE;
+					var sw:AsyncSWFWriter = new AsyncSWFWriter();
+					sw.addEventListener(AsyncSWFWriterEvent.WRITE_COMPLETE, function(ev:AsyncSWFWriterEvent) : void {
+						var b:ByteArray = ev.result.bytes;
+						var fs:FileStream = new FileStream();
+						fs.open(cache, FileMode.WRITE);
+						fs.writeBytes(b);
+						fs.close();
+						
+						loadBytes(b);
+					});
+					sw.write(s);
+				});
+				reader.read(new SWFByteArray(d));
+			});
+			ul.load(new URLRequest(fn.url));
 		}
 	}
 	
