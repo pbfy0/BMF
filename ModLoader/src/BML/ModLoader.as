@@ -95,6 +95,9 @@ package BML
 				handle_error(ev.error);
 			}, false, 2);
 			
+			load_mods();
+		}
+		private function load_brawlhalla() : void {
 			brawlhalla = new Brawlhalla();
 			var t:uint;
 			var h:Function = function(ev:Event) : void {
@@ -121,7 +124,6 @@ package BML
 			stage.addEventListener(Event.ADDED, h);
 			stage.addChild(brawlhalla);
 			
-			load_mods();
 		}
 		
 		private function load_mods() : void {
@@ -131,13 +133,18 @@ package BML
 				log("Mods directory does not exist - mods can't be loaded");
 				return;
 			}*/
+			var n_mods:uint = 0;
+			var n_loaded:uint = 0;
 			for each(var fl:File in md.getDirectoryListing()) {
 				if (!fl.isDirectory && endsWith(fl.name, ".swf") && fl.name != "bml-core.swf") {
+					n_mods++;
 					(function() : void {
 						log("Loading mod: " + fl.name);
 						loader.transform_and_load(fl, function(ms:ModSprite) : void {
 							mod_list.push(ms);
 							if (game) register(ms);
+							n_loaded++;
+							if (n_loaded == n_mods) load_brawlhalla();
 						});
 						//var loader:flash.display.Loader = new flash.display.Loader();
 						//loader.contentLoaderInfo.addEventListener(Event.COMPLETE, function(ev:Event) : void {
