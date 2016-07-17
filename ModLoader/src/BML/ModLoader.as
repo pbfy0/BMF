@@ -26,10 +26,6 @@ package BML
 
 		public static var instance:ModLoader;
 			
-		//internal static function Log(e:String) : void {
-		//	if(instance) instance.log(e);
-		//}
-
 		private static function endsWith(input:String, suffix:String):Boolean {
 			return (suffix == input.substring(input.length - suffix.length));
 		}
@@ -42,10 +38,6 @@ package BML
 		internal var loader:Loader;
 		private var error_count:uint = 0;
 		
-		//private static const CLASS_MAIN:String = "5\"r";// (Main)
-		//private static const MAIN_GAME:String = " m"; // main.game
-		//private static const MAIN_NOERRORS:String = "-!O"; // main.noErrors
-
 		public function ModLoader() 
 		{
 			if (stage){
@@ -75,7 +67,6 @@ package BML
 		
 		internal function handle_error(err : Error) : void {
 			log_error(err);
-			//log_f.close();
 			if (bhmain != null && bhmain._bh_noerr is Boolean && error_count < 10){
 				bhmain._bh_noerr = false;
 				error_count++;
@@ -110,6 +101,7 @@ package BML
 							stage.removeEventListener(Event.ADDED, h2);
 							game = bhmain._bh_game;
 							log("got Game: " + game);
+							loader.hide_onscreen_log();
 							register_mods();
 						}
 					}
@@ -129,10 +121,6 @@ package BML
 		private function load_mods() : void {
 			var md:File = File.applicationDirectory.resolvePath("mods");
 			mod_list = new Vector.<ModSprite>;
-			/*if (!md.exists){
-				log("Mods directory does not exist - mods can't be loaded");
-				return;
-			}*/
 			var n_mods:uint = 0;
 			var n_loaded:uint = 0;
 			for each(var fl:File in md.getDirectoryListing()) {
@@ -146,13 +134,6 @@ package BML
 							n_loaded++;
 							if (n_loaded == n_mods) load_brawlhalla();
 						});
-						//var loader:flash.display.Loader = new flash.display.Loader();
-						//loader.contentLoaderInfo.addEventListener(Event.COMPLETE, function(ev:Event) : void {
-						//	var li:LoaderInfo = ev.target as LoaderInfo;
-						//	var ms:ModSprite = li.content as ModSprite
-						//	mod_list.push(ms);
-						//});
-						//loader.load(new URLRequest(fl.url));
 					})();
 				}
 			}
