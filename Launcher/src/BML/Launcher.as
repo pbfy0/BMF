@@ -4,57 +4,35 @@ package BML
 	import com.swfwire.decompiler.AsyncSWFWriter;
 	import com.swfwire.decompiler.SWFByteArray;
 	import com.swfwire.decompiler.abc.ABCFile;
-	import com.swfwire.decompiler.abc.instructions.IInstruction;
-	import com.swfwire.decompiler.abc.instructions.Instruction_constructprop;
-	import com.swfwire.decompiler.abc.instructions.Instruction_constructsuper;
-	import com.swfwire.decompiler.abc.instructions.Instruction_getlocal1;
-	import com.swfwire.decompiler.abc.instructions.Instruction_pushnull;
-	import com.swfwire.decompiler.abc.instructions.Instruction_pushstring;
-	import com.swfwire.decompiler.abc.instructions.Instruction_setproperty;
-	import com.swfwire.decompiler.abc.tokens.InstanceToken;
 	import com.swfwire.decompiler.abc.tokens.MultinameToken;
 	import com.swfwire.decompiler.abc.tokens.StringToken;
-	import com.swfwire.decompiler.abc.tokens.ClassInfoToken
-	import com.swfwire.decompiler.abc.tokens.TraitsInfoToken;
 	import com.swfwire.decompiler.abc.tokens.multinames.IMultiname;
-	import com.swfwire.decompiler.abc.tokens.traits.TraitClassToken;
-	import com.swfwire.decompiler.abc.tokens.traits.TraitSlotToken;
 	import com.swfwire.decompiler.data.swf.SWF;
 	import com.swfwire.decompiler.data.swf.tags.SWFTag;
 	import com.swfwire.decompiler.data.swf9.tags.DoABCTag;
-	import com.swfwire.decompiler.events.AsyncSWFReaderEvent
+	import com.swfwire.decompiler.events.AsyncSWFReaderEvent;
 	import com.swfwire.decompiler.events.AsyncSWFWriterEvent;
-	import com.swfwire.decompiler.data.swf.SWFHeader;
-	import com.swfwire.decompiler.utils.ABCToActionScript;
-	import com.swfwire.decompiler.utils.ReadableMultiname;
-	import com.swfwire.decompiler.utils.ReadableTrait;
 	import flash.desktop.NativeApplication;
-	import flash.display.DisplayObject;
 	import flash.display.Loader;
 	import flash.display.LoaderInfo;
 	import flash.display.MovieClip;
 	import flash.display.Sprite;
-	import flash.display.Stage;
-	import flash.display.Stage3D;
 	import flash.events.Event;
-	import flash.events.FileListEvent;
-	import flash.events.GameInputEvent;
 	import flash.events.KeyboardEvent;
 	import flash.events.UncaughtErrorEvent;
 	import flash.filesystem.File;
-	import flash.filesystem.FileStream;
 	import flash.filesystem.FileMode;
-	import flash.utils.*;
+	import flash.filesystem.FileStream;
 	import flash.net.URLLoader;
 	import flash.net.URLLoaderDataFormat;
 	import flash.net.URLRequest;
-	import flash.system.LoaderContext;
 	import flash.system.ApplicationDomain;
-	import flash.system.SecurityDomain;
+	import flash.system.LoaderContext;
 	import flash.text.TextField;
 	import flash.text.TextFieldType;
 	import flash.text.TextFormat;
 	import flash.ui.Keyboard;
+	import flash.utils.*;
 	
 	/**
 	 * ...
@@ -96,7 +74,7 @@ package BML
 			var fs:FileStream = new FileStream();
 			fs.open(f, FileMode.APPEND);
 			log_f = fs;
-			log("");
+			_log("");
 			var tf:TextFormat = new TextFormat();
 			tf.font = "Arial";
 			tf.size = 14;
@@ -143,7 +121,8 @@ package BML
 		}
 		
 		internal function resolve_symbol(s:String) : String {
-			return name_mapping[s] as String;
+			var st:String = name_mapping[s] as String;
+			return st == null ? s : st;
 		}
 
 		private function log_error(err : Error) : void {
@@ -260,148 +239,24 @@ package BML
 			});
 		}
 		
-		private function add_mapping(un:String, ob:String) : void{
+		internal function add_mapping(un:String, ob:String) : void{
 			//log("mapping \"" + un + "\" to \"" + ob + "\"");
 			name_mapping[un] = ob;
 		}
 		
 		private function internal_resolve_symbols(cb:Function) : void {
-			log("Creating translation table");
+			//log("Creating translation table");
+			var _this:Launcher = this;
 			abc_mod(bhair_swf, function(abct:DoABCTag) : void {
 				if (abct.name == "merged") {
-					var abc:ABCFile = abct.abcFile;
-					var abc_tr:ABCToActionScript = new ABCToActionScript(abc);
-					var abcm:Object = {};
-					var uiscreen_candidates:Object = {};
-					
-					for(var i:uint = 0; i < abc.classCount; i++) {
-						var cit:ClassInfoToken	 = abc.classes[i];
-						var inst:InstanceToken = abc.instances[i];
-						var cn:ReadableMultiname = new ReadableMultiname();
-						abc_tr.getReadableMultiname(inst.name, cn);
-						abcm[cn.name] = i;
-						switch(cn.name) {
-							case "Game":
-								var ss:uint = 0;
-								for (var j:uint = 0; j < inst.traitCount; j++) {
-									if(inst.traits[j].kind == TraitsInfoToken.KIND_TRAIT_SLOT){
-										var tr:ReadableTrait = new ReadableTrait();
-										abc_tr.getReadableTrait(inst.traits[j], tr);
-										if (tr.type.name == "String"){
-											if (ss++ == 3){
-												add_mapping("playername", tr.declaration.name);
-												break;
-											}
-										}
-									}
-								}
-								break;
-							case "Brawlhalla":
-								for (var j:uint = 0; j < inst.traitCount; j++) {
-									var tr:ReadableTrait = new ReadableTrait();
-									abc_tr.getReadableTrait(inst.traits[j], tr);
-									if (tr.declaration.name == "InitializeMain") {
-										var inss:Vector.<IInstruction> = tr.instructions;
-										for (var k:uint = 0; k < inss.length; k++) {
-											var ii:IInstruction = inss[k];
-											if (ii is Instruction_constructprop) {
-												var rmn:ReadableMultiname = new ReadableMultiname();
-												abc_tr.getReadableMultiname((ii as Instruction_constructprop).index, rmn);
-												add_mapping("Main", rmn.name);
-												for (k++; k < inss.length; k++) {
-													var ii2:IInstruction = inss[k];
-													if (ii2 is Instruction_setproperty){
-														var rmn2:ReadableMultiname = new ReadableMultiname();
-														abc_tr.getReadableMultiname((ii2 as Instruction_setproperty).index, rmn2);
-														add_mapping("main", rmn2.name);
-														break;
-													}
-												}
-												break;
-											}
-										}
-										break;
-									}
-								}
-								break;
-							default:
-								if (cn.name.replace(/[^a-zA-Z]/g, "").length > 3) continue; // not obfuscated, don't bother
-								var sn:ReadableMultiname = new ReadableMultiname();
-								abc_tr.getReadableMultiname(inst.superName, sn);
-								if (sn.name != "Object") {
-									var r:ReadableTrait = new ReadableTrait();
-									abc_tr.getMethodBody(inst.name, inst.iinit, r);
-									var inss:Vector.<IInstruction> = r.instructions;
-									for (var j:uint = 0; j < Math.min(inss.length, 10); j++ ) {
-										var ii:IInstruction = inss[j];
-										if (ii is Instruction_constructsuper){
-											var ics:Instruction_constructsuper = ii as Instruction_constructsuper;
-											if (ics.argCount == 3 && 
-												inss[j - 3] is Instruction_getlocal1 &&
-												inss[j - 2] is Instruction_pushstring) {
-												
-												var i_1:IInstruction = inss[j - 1];
-												if ((i_1 is Instruction_pushstring && abc.cpool.strings[(i_1 as Instruction_pushstring).index].utf8 in {"am_Panel":1, "am_PanelInternal":1}) || // : 1, "am_PanelInternal": 1}
-													i_1 is Instruction_pushnull) {
-												
-													var rns:String = abc.cpool.strings[(inss[j - 2] as Instruction_pushstring).index].utf8.substr(2)
-													//log(rns + " extends " + sn.name);
-													if (!(sn.name in uiscreen_candidates)) uiscreen_candidates[sn.name] = 0
-													uiscreen_candidates[sn.name]++;
-													add_mapping(rns, cn.name);
-												}
-											}
-										break;
-										}
-									}
-								}
-								break;
-						
-						}
-					}
-					var mi:uint = 0;
-					var cc:String;
-					for (var c:String in uiscreen_candidates){
-						var v:uint = uiscreen_candidates[c];
-						if (v > mi){
-							cc = c;
-							mi = v;
-						}
-					}
-					add_mapping("UIScreen", cc);
-					
-					var mcl:uint = abcm[resolve_symbol("Main")]
-					var cit:ClassInfoToken	 = abc.classes[mcl];
-					var inst:InstanceToken = abc.instances[mcl];
-					var found_noerr:Boolean = false;
-					var found_game:Boolean = false;
-					for each(var it:TraitsInfoToken in inst.traits) {
-						if (it.kind == TraitsInfoToken.KIND_TRAIT_SLOT) {
-							var d:TraitSlotToken = it.data as TraitSlotToken;
-							if(d.vIndex == 0x00) { // undefined
-								var tn:ReadableMultiname = new ReadableMultiname();
-								abc_tr.getReadableMultiname(d.typeName, tn);
-								if (tn.name == "Boolean"){
-									abc_tr.multinameTraitToString(it.name, tn);
-									add_mapping("noerr", tn.name);
-									found_noerr = true;
-									//add_mapping
-								}
-								if (tn.name == "Game"){
-									abc_tr.multinameTraitToString(it.name, tn);
-									add_mapping("game", tn.name);
-									found_game = true;
-								}
-								if (found_noerr && found_game) break;
-							}
-						}
-					}
+					var r:Resolver = new Resolver(_this, abct.abcFile);
+					r.resolve();
 					cb();
 				}
-			}, null);
+			});
 		}
 		
-		private function abc_mod(fn:File, mcb:Function, ccb:Function) : void {
+		private function abc_mod(fn:File, mcb:Function, ccb:Function=null) : void {
 			var ul:URLLoader = new URLLoader();
 			ul.dataFormat = URLLoaderDataFormat.BINARY;
 			ul.addEventListener(Event.COMPLETE, function(ev:Event) : void {
@@ -472,13 +327,7 @@ package BML
 						var st:StringToken = abc.cpool.strings[d["name"]]
 						if (st.utf8.indexOf("_bh_") == 0){
 							var n:String = st.utf8.substr(4);
-							if (n in name_mapping && name_mapping[n] is String){
-								log("mapping " + n + " to " + name_mapping[n]);
-								st.utf8 = name_mapping[n];// multiname_sts[st] = n;
-							} else {
-								log("null-mapping " + n);
-								st.utf8 = n;
-							}
+							st.utf8 = resolve_symbol(n);
 						}
 					}
 				}
