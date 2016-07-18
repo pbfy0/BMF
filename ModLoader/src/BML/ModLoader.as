@@ -35,7 +35,7 @@ package BML
 		internal var game:Game;
 		
 		private var mod_list:Vector.<ModSprite>;
-		internal var loader:Loader;
+		internal var launcher:Launcher;
 		private var error_count:uint = 0;
 		
 		public function ModLoader() 
@@ -57,8 +57,13 @@ package BML
 			}
 		}
 		
-		internal function log(s : String) : void {
-			this.loader.log(s);
+		private function log(s : String) : void {
+			m_log("ModLoader", s);
+			//this.loader.log(s);
+		}
+		
+		internal function m_log(mn : String, l : String) : void {
+			launcher.m_log(mn, l);
 		}
 		
 		private function log_error(err : Error) : void {
@@ -68,15 +73,17 @@ package BML
 		internal function handle_error(err : Error) : void {
 			log_error(err);
 			if (bhmain != null && bhmain._bh_noerr is Boolean && error_count < 10){
+				log("option A");
 				bhmain._bh_noerr = false;
 				error_count++;
 			} else {
+				log("option B");
 				NativeApplication.nativeApplication.exit();
 			}
 		}
 		
 		internal function resolve_symbol(s:String) : String {
-			return loader.resolve_symbol(s);
+			return launcher.resolve_symbol(s);
 		}
 
 		private function main() : void {
@@ -89,7 +96,8 @@ package BML
 			load_mods();
 		}
 		private function load_brawlhalla() : void {
-			brawlhalla = new Brawlhalla();
+			log("launching Brawlhalla...");
+			brawlhalla = launcher.brawlhalla as Brawlhalla;
 			var t:uint;
 			var h:Function = function(ev:Event) : void {
 				if (ev.target is _bh_Main){
@@ -101,7 +109,7 @@ package BML
 							stage.removeEventListener(Event.ADDED, h2);
 							game = bhmain._bh_game;
 							log("got Game: " + game);
-							loader.hide_onscreen_log();
+							launcher.hide_onscreen_log();
 							register_mods();
 						}
 					}
@@ -114,7 +122,8 @@ package BML
 				stage.removeEventListener(Event.ADDED, h);
 			}, 10000);
 			stage.addEventListener(Event.ADDED, h);
-			stage.addChild(brawlhalla);
+			//stage.addChild(brawlhalla);
+			stage.addChildAt(brawlhalla, 0);
 			
 		}
 		
@@ -127,12 +136,20 @@ package BML
 				if (!fl.isDirectory && endsWith(fl.name, ".swf") && fl.name != "bml-core.swf") {
 					n_mods++;
 					(function() : void {
-						log("Loading mod: " + fl.name);
-						loader.transform_and_load(fl, function(ms:ModSprite) : void {
+						var cfl:File = fl;
+						log("Loading mod: " + cfl.name);
+						var cms:ModSprite;
+						launcher.transform_and_load(cfl, function(ms:ModSprite) : void {
 							mod_list.push(ms);
+							cms = ms;
 							if (game) register(ms);
 							n_loaded++;
 							if (n_loaded == n_mods) load_brawlhalla();
+						}, false, function(ev:UncaughtErrorEvent) : void {
+							ev.preventDefault();
+							ev.stopPropagation();
+							log("Error in " + (cms != null ? cms.mod_name : cfl.name));
+							log((ev.error as Error).getStackTrace());
 						});
 					})();
 				}

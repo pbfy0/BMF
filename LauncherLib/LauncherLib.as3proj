@@ -4,7 +4,7 @@
   <output>
     <movie outputType="CustomBuild" />
     <movie input="" />
-    <movie path="bin\{Build}\LoaderLib.swc" />
+    <movie path="bin\{Build}\LauncherLib.swc" />
     <movie fps="0" />
     <movie width="0" />
     <movie height="0" />
@@ -15,7 +15,7 @@
   </output>
   <!-- Other classes to be compiled into your SWF -->
   <classpaths>
-    <class path="..\Loader\src" />
+    <class path="..\Launcher\src" />
   </classpaths>
   <!-- Build options -->
   <build>

@@ -30,6 +30,7 @@ package BML
 	import com.swfwire.decompiler.utils.ReadableTrait;
 	import flash.desktop.NativeApplication;
 	import flash.display.DisplayObject;
+	import flash.display.Loader;
 	import flash.display.LoaderInfo;
 	import flash.display.MovieClip;
 	import flash.display.Sprite;
@@ -38,6 +39,7 @@ package BML
 	import flash.events.Event;
 	import flash.events.FileListEvent;
 	import flash.events.GameInputEvent;
+	import flash.events.KeyboardEvent;
 	import flash.events.UncaughtErrorEvent;
 	import flash.filesystem.File;
 	import flash.filesystem.FileStream;
@@ -52,22 +54,23 @@ package BML
 	import flash.text.TextField;
 	import flash.text.TextFieldType;
 	import flash.text.TextFormat;
+	import flash.ui.Keyboard;
 	
 	/**
 	 * ...
 	 * @author Paul
 	 */
-	public class Loader extends Sprite 
+	public class Launcher extends Sprite 
 	{
 
-		public static var instance:Loader;
+		public static var instance:Launcher;
 			
 		internal static function Log(e:String) : void {
 			if(instance) instance.log(e);
 		}
 		
 		private var log_f:FileStream;
-		private var brawlhalla:MovieClip;
+		internal var brawlhalla:MovieClip;
 		private var modloader:Sprite;
 		private var error_count:uint = 0;
 		private var name_mapping:Object;
@@ -75,10 +78,10 @@ package BML
 		private var cachedir:File;
 		
 		private var log_onscreen:TextField;
-		private var bhair_swf:File;
+		private static var bhair_swf:File = File.applicationDirectory.resolvePath("BrawlhallaAir.swf");
 		private static var core_file:File = File.applicationDirectory.resolvePath("mods").resolvePath("bml-core.swf");
 		
-		public function Loader() 
+		public function Launcher() 
 		{
 			if (stage){
 				init();
@@ -96,6 +99,7 @@ package BML
 			log("");
 			var tf:TextFormat = new TextFormat();
 			tf.font = "Arial";
+			tf.size = 14;
 			log_onscreen = new TextField();
 			log_onscreen.type = TextFieldType.DYNAMIC;
 			log_onscreen.textColor = 0xffffff;
@@ -103,9 +107,15 @@ package BML
 			log_onscreen.width = stage.stageWidth;
 			log_onscreen.height = stage.stageHeight;
 			log_onscreen.defaultTextFormat = tf;
+			log_onscreen.mouseEnabled = false;
+			stage.addEventListener(KeyboardEvent.KEY_DOWN, function(ev:KeyboardEvent) : void {
+				if (ev.keyCode == Keyboard.F10 && ev.shiftKey) {
+					log_onscreen.visible = !log_onscreen.visible;
+				}
+			});
 			stage.addChild(log_onscreen);
 			
-			log("BML.Loader loaded - " + new Date().toLocaleString());
+			log("BML.Launcher loaded - " + new Date().toLocaleString());
 			
 			try{
 				main();
@@ -115,12 +125,21 @@ package BML
 		}
 		
 		internal function hide_onscreen_log() : void {
-			stage.removeChild(log_onscreen);
+			log_onscreen.visible = !log_onscreen.visible;
+			//stage.removeChild(log_onscreen);
+		}
+		
+		private function _log(s : String) : void {
+			this.log_f.writeUTFBytes(s + "\n");
+			if (log_onscreen) log_onscreen.appendText(s + "\n");
 		}
 		
 		internal function log(s : String) : void {
-			this.log_f.writeUTFBytes(s + "\n");
-			if (log_onscreen) log_onscreen.appendText(s + "\n");
+			m_log("Launcher", s);
+		}
+		
+		internal function m_log(mn:String, l:String) : void {
+			_log(l.replace(/^/gm, "[" + mn + "] "));
 		}
 		
 		internal function resolve_symbol(s:String) : String {
@@ -136,8 +155,15 @@ package BML
 			NativeApplication.nativeApplication.exit();
 		}
 		
+		private function handle_error_event(ev:UncaughtErrorEvent) : void {
+			ev.stopImmediatePropagation();
+			ev.preventDefault();
+			handle_error(ev.error);
+		}
+		
 		private function load_nm_from_file(nmf:File) : void {
-			log("Loading translation table from file");
+			//return;
+			log("Loading translation table");
 			var q:FileStream = new FileStream();
 			q.open(nmf, FileMode.READ);
 			var s:String = q.readUTFBytes(q.bytesAvailable);
@@ -150,7 +176,7 @@ package BML
 		}
 		
 		private function write_nm_to_file(nmf:File) : void {
-			log("Writing translation table to file");
+			log("Saving translation table");
 			var q:FileStream = new FileStream();
 			q.open(nmf, FileMode.WRITE);
 			for (var k:String in name_mapping){
@@ -159,58 +185,79 @@ package BML
 			q.close();
 		}
 		
-		private function setup_nm() : void {
-			var _this:Loader = this;
+		private function load_ml() : void {
+			var _this:Launcher = this;
+			log("loading ModLoader");
+			
+			transform_and_load(core_file, function(core:Sprite) : void {
+				modloader = core;
+				modloader["launcher"] = _this;
+				stage.addChild(modloader);
+			}, true);
+		}
+		
+		private function load_bh(cb:Function) : void {
+			log("loading Brawlhalla");
+			var l:Loader = new Loader();
+			l.contentLoaderInfo.addEventListener(Event.COMPLETE, function(ev:Event) : void {
+				var li:LoaderInfo = ev.target as LoaderInfo;
+				brawlhalla = li.content as MovieClip;
+				cb();
+			});
+			var lc:LoaderContext = new LoaderContext();
+			lc.applicationDomain = ApplicationDomain.currentDomain;
+			l.load(new URLRequest(bhair_swf.url), lc);
+			
+		}
+		
+		private function setup_nm(cb:Function) : void {
+			var _this:Launcher = this;
 			var nmf:File = File.applicationStorageDirectory.resolvePath("bh_map.txt");
-			var load_ml:Function = function(writeout:Boolean=true) : void {
-				log("loading ModLoader");
-				
-				transform_and_load(core_file, function(core:Sprite) : void {
-					modloader = core;
-					modloader["loader"] = _this;
-					stage.addChild(modloader);
-				}, true);
-				if(writeout) write_nm_to_file(nmf);
-			}
+			var lf:File = new File();
+			lf.url = loaderInfo.url;
 			//log("nmf new: " + (nmf.modificationDate.getTime() > swf_mod_date.getTime()));
-			if (nmf.exists && nmf.modificationDate.getTime() > swf_mod_date.getTime()) {
+			if (nmf.exists && nmf.modificationDate.getTime() > swf_mod_date.getTime() && nmf.modificationDate.getTime() > lf.modificationDate.getTime()) {
 				load_nm_from_file(nmf);
-				load_ml(false);
+				cb();
 			} else {
-				internal_resolve_symbols(load_ml);
+				internal_resolve_symbols(function() : void {
+					cb();
+					write_nm_to_file(nmf);
+				});
 			}
 		}
 		
 		private function main() : void {
 			
+			root.loaderInfo.uncaughtErrorEvents.addEventListener("uncaughtError", handle_error_event, false, 1);
+
 			name_mapping = {};
 			
-			bhair_swf = new File();
-			bhair_swf.url = stage.loaderInfo.url
 			swf_mod_date = bhair_swf.modificationDate;
 			
 			cachedir = File.applicationStorageDirectory.resolvePath("mod_cache");
 			if (!cachedir.exists) cachedir.createDirectory();
 			
-			root.loaderInfo.uncaughtErrorEvents.addEventListener("uncaughtError", function(ev:UncaughtErrorEvent) : void {
-				ev.stopImmediatePropagation();
-				ev.preventDefault();
-				handle_error(ev.error);
-			}, false, 1);
-			
 			if (!core_file.exists){
-				log("core.swf not found - can't load");
-				log("attempting to launch brawlhalla");
-				setTimeout(function() : void {
-					hide_onscreen_log();
-				}, 1000);
-				var bhc:Class = getDefinitionByName("Brawlhalla") as Class;
-				brawlhalla = new bhc as MovieClip;
-				stage.addChild(brawlhalla);
+				log("bml-core.swf not found - can't load mods");
+				load_bh(function() : void {
+					setTimeout(function() : void {
+						hide_onscreen_log();
+					}, 1000);
+					log("launching Brawlhalla...");
+					stage.addChildAt(brawlhalla, 0);
+				});
 				return;
 			}
 			
-			setup_nm();
+			var load_stage:uint = 0;
+			
+			setup_nm(function() : void {
+				if(++load_stage == 2) load_ml();
+			});
+			load_bh(function() : void {
+				if(++load_stage == 2) load_ml();
+			});
 		}
 		
 		private function add_mapping(un:String, ob:String) : void{
@@ -219,7 +266,7 @@ package BML
 		}
 		
 		private function internal_resolve_symbols(cb:Function) : void {
-			log("Automatically creating translation table");
+			log("Creating translation table");
 			abc_mod(bhair_swf, function(abct:DoABCTag) : void {
 				if (abct.name == "merged") {
 					var abc:ABCFile = abct.abcFile;
@@ -234,6 +281,21 @@ package BML
 						abc_tr.getReadableMultiname(inst.name, cn);
 						abcm[cn.name] = i;
 						switch(cn.name) {
+							case "Game":
+								var ss:uint = 0;
+								for (var j:uint = 0; j < inst.traitCount; j++) {
+									if(inst.traits[j].kind == TraitsInfoToken.KIND_TRAIT_SLOT){
+										var tr:ReadableTrait = new ReadableTrait();
+										abc_tr.getReadableTrait(inst.traits[j], tr);
+										if (tr.type.name == "String"){
+											if (ss++ == 3){
+												add_mapping("playername", tr.declaration.name);
+												break;
+											}
+										}
+									}
+								}
+								break;
 							case "Brawlhalla":
 								for (var j:uint = 0; j < inst.traitCount; j++) {
 									var tr:ReadableTrait = new ReadableTrait();
@@ -367,10 +429,10 @@ package BML
 			ul.load(new URLRequest(fn.url));
 		}
 		
-		internal function transform_and_load(fn:File, callback:Function, core:Boolean = false) : void {
+		internal function transform_and_load(fn:File, callback:Function, core:Boolean = false, err_h:Function = null) : void {
 			var cache:File = cachedir.resolvePath(fn.name);
 			var loadBytes:Function = function(cc:ByteArray) : void {
-				var l:flash.display.Loader = new flash.display.Loader();
+				var l:Loader = new Loader();
 				l.contentLoaderInfo.addEventListener(Event.COMPLETE, function(ev:Event) : void {
 					var li:LoaderInfo = ev.target as LoaderInfo;
 					callback(li.content);
@@ -379,7 +441,13 @@ package BML
 				if (core) lc.applicationDomain = ApplicationDomain.currentDomain;
 				//lc.securityDomain = SecurityDomain.currentDomain;
 				lc.allowCodeImport = true;
-				l.loadBytes(cc, lc);
+				if(err_h != null) l.uncaughtErrorEvents.addEventListener("uncaughtError", err_h);
+				try{
+					l.loadBytes(cc, lc);
+				} catch (e:Error) {
+					handle_error(e);
+				}
+				
 			};
 			
 			if (cache.exists && cache.modificationDate.getTime() > fn.modificationDate.getTime() && cache.modificationDate.getTime() > swf_mod_date.getTime()) {
@@ -396,23 +464,30 @@ package BML
 			log("Patching mod: " + fn.name);
 			abc_mod(fn, function(abct:DoABCTag) : void {
 				var abc:ABCFile = abct.abcFile;
-				var multiname_sts:Dictionary = new Dictionary();
+				//var multiname_sts:Dictionary = new Dictionary();
+				//var nonrename_sts:Dictionary = new Dictionary();
 				for each(var m:MultinameToken in abc.cpool.multinames) {
 					var d:IMultiname = m.data;
 					if (d != null && "name" in d) {
 						var st:StringToken = abc.cpool.strings[d["name"]]
 						if (st.utf8.indexOf("_bh_") == 0){
 							var n:String = st.utf8.substr(4);
-							if (n in name_mapping && name_mapping[n] is String) multiname_sts[st] = n;
+							if (n in name_mapping && name_mapping[n] is String){
+								log("mapping " + n + " to " + name_mapping[n]);
+								st.utf8 = name_mapping[n];// multiname_sts[st] = n;
+							} else {
+								log("null-mapping " + n);
+								st.utf8 = n;
+							}
 						}
 					}
 				}
-				for (var sto:Object in multiname_sts) {
+				/*for (var sto:Object in multiname_sts) {
 					var v:String = multiname_sts[sto] as String;
 					if (v == null) continue;
 					var st:StringToken = sto as StringToken;
 					st.utf8 = name_mapping[v];
-				}
+				}*/
 			}, function(b:ByteArray) : void {
 				var fs:FileStream = new FileStream();
 				fs.open(cache, FileMode.WRITE);

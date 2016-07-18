@@ -33,7 +33,7 @@ package BML
 		}
 		
 		protected function log(s:String) : void {
-			_ml.log("[" + mod_name + "] " + s);
+			_ml.m_log(mod_name, s);
 		}
 		
 		protected function Init() : void {
