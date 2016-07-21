@@ -1,4 +1,4 @@
-package 
+package _bh_ 
 {
 	import flash.display.MovieClip;
 	

@@ -57,7 +57,7 @@
   <!-- External Libraries -->
   <externalLibraryPaths>
     <element path="..\LibBH\bin\Release\LibBH.swc" />
-    <element path="..\LoaderLib\bin\Release\LoaderLib.swc" />
+    <element path="..\LauncherLib\bin\Release\LauncherLib.swc" />
   </externalLibraryPaths>
   <!-- Runtime Shared Libraries -->
   <rslPaths>

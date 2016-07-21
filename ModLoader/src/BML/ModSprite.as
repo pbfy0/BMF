@@ -1,5 +1,8 @@
 package BML 
 {
+	import _bh_.Brawlhalla;
+	import _bh_.Game;
+	import _bh_.Main;
 	import flash.display.MovieClip;
 	import flash.display.Sprite;
 	import flash.events.Event;
@@ -17,6 +20,8 @@ package BML
 		//internal var _brawlhalla:Brawlhalla;
 		
 		internal var _ml:ModLoader;
+		private var modmaps:Object;
+		private var g:Game;
 		
 		public function ModSprite() 
 		{
@@ -26,6 +31,17 @@ package BML
 		
 		private function _init(e:Event) : void {
 			Init();
+			//game._bh_i_ScreenTextBox;
+			//game.
+			//game._bh_i_ScreenTextBox;
+		}
+		
+		internal function _cinit() : void {
+			CInit();
+		}
+		
+		protected function CInit() : void {
+			// override
 		}
 		
 		public function get mod_name() : String {
@@ -44,7 +60,7 @@ package BML
 			return _ml.game;
 		}
 		
-		protected function get main() : _bh_Main {
+		protected function get main() : Main {
 			return _ml.bhmain;
 		}
 		
@@ -52,9 +68,13 @@ package BML
 			return _ml.brawlhalla;
 		}
 		
-		protected function resolve_symbol(s:String) : String {
-			return _ml.resolve_symbol(s);
+		/*protected function add_mapping(de:String, ob:String) : void {
+			modmaps[de] = ob;
 		}
+		
+		protected function resolve_symbol(s:String) : String {
+			return (modmaps[s] as String) != null ? modmaps[s] : _ml.resolve_symbol(s);
+		}*/
 	
 	}
 

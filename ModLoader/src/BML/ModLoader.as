@@ -1,5 +1,8 @@
 package BML
 {
+	import _bh_.Brawlhalla;
+	import _bh_.Game;
+	import _bh_.Main;
 	import flash.desktop.NativeApplication;
 	import flash.display.DisplayObject;
 	import flash.display.LoaderInfo;
@@ -31,7 +34,7 @@ package BML
 		}
 		
 		internal var brawlhalla:Brawlhalla;
-		internal var bhmain:_bh_Main;
+		internal var bhmain:Main
 		internal var game:Game;
 		
 		private var mod_list:Vector.<ModSprite>;
@@ -82,16 +85,16 @@ package BML
 			}
 		}
 		
-		internal function resolve_symbol(s:String) : String {
+		/*internal function resolve_symbol(s:String) : String {
 			return launcher.resolve_symbol(s);
-		}
+		}*/
 
 		private function main() : void {
 			root.loaderInfo.uncaughtErrorEvents.addEventListener("uncaughtError", function(ev:UncaughtErrorEvent) : void {
 				ev.stopImmediatePropagation();
 				ev.preventDefault();
 				handle_error(ev.error);
-			}, false, 2);
+			}, false, 1);
 			
 			load_mods();
 		}
@@ -100,10 +103,10 @@ package BML
 			brawlhalla = launcher.brawlhalla as Brawlhalla;
 			var t:uint;
 			var h:Function = function(ev:Event) : void {
-				if (ev.target is _bh_Main){
+				if (ev.target is Main){
 					clearTimeout(t);
 					stage.removeEventListener(Event.ADDED, h);
-					bhmain = ev.target as _bh_Main;
+					bhmain = ev.target as Main;
 					var h2:Function = function(ev:Event) : void {
 						if (getQualifiedClassName(ev.target) == "a_ScreenLoading") {
 							stage.removeEventListener(Event.ADDED, h2);
@@ -132,6 +135,7 @@ package BML
 			mod_list = new Vector.<ModSprite>;
 			var n_mods:uint = 0;
 			var n_loaded:uint = 0;
+			var _this:ModLoader = this;
 			for each(var fl:File in md.getDirectoryListing()) {
 				if (!fl.isDirectory && endsWith(fl.name, ".swf") && fl.name != "bml-core.swf") {
 					n_mods++;
@@ -141,6 +145,8 @@ package BML
 						var cms:ModSprite;
 						launcher.transform_and_load(cfl, function(ms:ModSprite) : void {
 							mod_list.push(ms);
+							ms._ml = _this;
+							ms._cinit();
 							cms = ms;
 							if (game) register(ms);
 							n_loaded++;
@@ -164,7 +170,6 @@ package BML
 
 		private function register(spr:ModSprite) : void {
 			log("Registering mod: " + spr.mod_name);
-			spr._ml = this;
 			addChild(spr);
 		}
 	}
