@@ -94,11 +94,11 @@ package BML
 			log_onscreen.defaultTextFormat = tf;
 			log_onscreen.mouseEnabled = false;
 			log_onscreen.antiAliasType = AntiAliasType.ADVANCED;
-			stage.addEventListener(KeyboardEvent.KEY_DOWN, function(ev:KeyboardEvent) : void {
+			/*stage.addEventListener(KeyboardEvent.KEY_DOWN, function(ev:KeyboardEvent) : void {
 				if (ev.keyCode == Keyboard.F10 && ev.shiftKey) {
 					log_onscreen.visible = !log_onscreen.visible;
 				}
-			});
+			});*/
 			stage.addChild(log_onscreen);
 			
 			log("BML.Launcher loaded - " + new Date().toLocaleString());
@@ -110,9 +110,14 @@ package BML
 			}
 		}
 		
-		internal function hide_onscreen_log() : void {
-			log_onscreen.visible = !log_onscreen.visible;
-			//stage.removeChild(log_onscreen);
+		internal function handover_log(tf:TextField) : String {
+			log("handover_log called");
+			stage.removeChild(log_onscreen);
+			var s:String = log_onscreen.text;
+			log_onscreen = tf;
+			return s;
+			//log_onscreen = null;
+			//return lo;
 		}
 		
 		private function _log(s : String) : void {
@@ -203,7 +208,7 @@ package BML
 				log("bml-core.swf not found - can't load mods");
 				load_bh(function() : void {
 					setTimeout(function() : void {
-						hide_onscreen_log();
+						stage.removeChild(log_onscreen);
 					}, 1000);
 					log("launching Brawlhalla...");
 					stage.addChildAt(brawlhalla, 0);

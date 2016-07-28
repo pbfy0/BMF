@@ -19,6 +19,7 @@ package BML
 	import flash.filesystem.FileMode;
 	import flash.utils.*;
 	import flash.net.URLRequest;
+	import flash.text.TextField;
 	
 	/**
 	 * ...
@@ -40,6 +41,7 @@ package BML
 		private var mod_list:Vector.<ModSprite>;
 		internal var launcher:Launcher;
 		private var error_count:uint = 0;
+		private var console:Console;
 		
 		public function ModLoader() 
 		{
@@ -95,6 +97,16 @@ package BML
 				ev.preventDefault();
 				handle_error(ev.error);
 			}, false, 1);
+			console = new Console(this);
+			console.output_tf.text = launcher.handover_log(console.output_tf);
+			/*var q:TextField = new TextField();
+			q.text = "This is a test";
+			q.textColor = 0xffffff;
+			addChild(q);
+			log(""+console.output_tf.text.length);*/
+			//console.opaqueBackground = 0x123456;
+			addChild(console);
+			//stage.addChild(console);
 			
 			load_mods();
 		}
@@ -112,7 +124,7 @@ package BML
 							stage.removeEventListener(Event.ADDED, h2);
 							game = bhmain._bh_game;
 							log("got Game: " + game);
-							launcher.hide_onscreen_log();
+							console.visible = false;
 							register_mods();
 						}
 					}
@@ -160,6 +172,7 @@ package BML
 					})();
 				}
 			}
+			if (n_mods == 0) load_brawlhalla();
 		}
 		
 		private function register_mods() : void {
