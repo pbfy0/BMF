@@ -1,2 +1,5 @@
 Lib/obj/*
 Loader/obj/*
+
+installer/*.swf
+installer/*.zip
