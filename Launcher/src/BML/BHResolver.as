@@ -39,6 +39,8 @@ package BML
 		internal var type_mapping:Object;
 		private var r_type_mapping:Object;
 		
+		internal var classes:Object;
+		
 		public function BHResolver(l:Launcher) 
 		{
 			launcher = l;
@@ -46,22 +48,39 @@ package BML
 			r_var_mapping = {}
 			type_mapping = {}
 			r_type_mapping = {}
+			classes = {};
 		}
 		
-		internal function resolve(bhabc:ABCFile) : void {
+		internal function load_from_json() : void {
+			var mf:File = File.applicationDirectory.resolvePath("BrawlhallaAir_map.json");
+			var fr:FileStream = new FileStream();
+			fr.open(mf, FileMode.READ);
+			var j:Object = JSON.parse(fr.readUTFBytes(fr.bytesAvailable));
+			fr.close();
+			for each(var k:Object in j.mapping) {
+				var on:String = k.originalName;
+				var nn:String = k.newName;
+				if (nn in classes) {
+					add_type_mapping(on, nn);
+				} else {
+					add_var_mapping(on, nn);
+				}
+			}
+		}
+		
+		internal function addNames(bhabc:ABCFile) : void {
 			abc = bhabc;
 			abc_tr = new ABCToActionScript(abc);
-			launcher.log("Creating translation table");
 			
 			var cn:ReadableMultiname = new ReadableMultiname();
-			var classes:Object = {};
+			//var classes:Object = {};
 			for (var i:uint = 0; i < abc.classCount; i++) {
 				var inst:InstanceToken = abc.instances[i];
 				abc_tr.getReadableMultiname(inst.name, cn);
 				classes[cn.name] = i;
 			}
 			
-			resolve_maintype_and_xmls(classes["Brawlhalla"]);
+			/*resolve_maintype_and_xmls(classes["Brawlhalla"]);
 			resolve_mainvars(classes[resolve_type("Main")]);
 			resolve_uiscreens(classes);
 			var gci:uint = classes["Game"];
@@ -69,7 +88,7 @@ package BML
 			resolve_gamevars(gci);
 			resolve_chatbox(classes[resolve_type("ScreenChatBox")]);
 			resolve_winner(classes[resolve_type("ScreenScoreboard")]);
-			resolve_winnertext(classes[resolve_type("UICharacterSlotScoreboard")]);
+			resolve_winnertext(classes[resolve_type("UICharacterSlotScoreboard")]);*/
 		}
 		
 		private function add_var_mapping(de:String, ob:String) : void {

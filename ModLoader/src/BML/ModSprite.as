@@ -3,9 +3,12 @@ package BML
 	import _bh_.Brawlhalla;
 	import _bh_.Game;
 	import _bh_.Main;
+	import flash.Boot;
+	import flash.display.Loader;
 	import flash.display.MovieClip;
 	import flash.display.Sprite;
 	import flash.events.Event;
+	import flash.filesystem.File;
 	import flash.utils.getQualifiedClassName;
 	
 	/**
@@ -20,6 +23,8 @@ package BML
 		//internal var _brawlhalla:Brawlhalla;
 		
 		internal var _ml:ModLoader;
+		internal var loader:Loader;
+		internal var fn:File;
 		private var modmaps:Object;
 		private var g:Game;
 		
@@ -40,6 +45,10 @@ package BML
 			CInit();
 		}
 		
+		internal function _unload() : void {
+			Unload();
+		}
+		
 		protected function CInit() : void {
 			// override
 		}
@@ -56,6 +65,10 @@ package BML
 			// meant to be overridden
 		}
 		
+		protected function Unload() : void {
+			
+		}
+		
 		protected function get game() : Game {
 			return _ml.game;
 		}
@@ -64,8 +77,8 @@ package BML
 			return _ml.bhmain;
 		}
 		
-		protected function get brawlhalla() : Brawlhalla {
-			return _ml.brawlhalla;
+		protected function get boot() : Boot {
+			return _ml.bh_boot;
 		}
 		
 		/*protected function add_mapping(de:String, ob:String) : void {

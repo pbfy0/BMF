@@ -3,6 +3,9 @@ package BML
 	import _bh_.Brawlhalla;
 	import _bh_.Game;
 	import _bh_.Main;
+	import flash.Boot;
+	import flash.display.Loader;
+	
 	import flash.desktop.NativeApplication;
 	import flash.display.DisplayObject;
 	import flash.display.LoaderInfo;
@@ -29,16 +32,17 @@ package BML
 	{
 
 		public static var instance:ModLoader;
+		internal static var mod_dir:File = File.applicationDirectory.resolvePath("mods");
 			
 		private static function endsWith(input:String, suffix:String):Boolean {
 			return (suffix == input.substring(input.length - suffix.length));
 		}
 		
-		internal var brawlhalla:Brawlhalla;
+		internal var bh_boot:Boot;
 		internal var bhmain:Main
 		internal var game:Game;
 		
-		private var mod_list:Vector.<ModSprite>;
+		internal var mods:Object;
 		internal var launcher:Launcher;
 		private var error_count:uint = 0;
 		private var console:Console;
@@ -77,9 +81,9 @@ package BML
 		
 		internal function handle_error(err : Error) : void {
 			log_error(err);
-			if (bhmain != null && bhmain._bh_noerr is Boolean && error_count < 10){
+			if (bhmain != null && bhmain._bh_mbKeepTicking is Boolean && error_count < 10){
 				log("option A");
-				bhmain._bh_noerr = false;
+				bhmain._bh_mbKeepTicking = false;
 				error_count++;
 			} else {
 				log("option B");
@@ -111,18 +115,20 @@ package BML
 			load_mods();
 		}
 		private function load_brawlhalla() : void {
+			var _this:ModLoader = this;
 			log("launching Brawlhalla...");
-			brawlhalla = launcher.brawlhalla as Brawlhalla;
+			bh_boot = launcher.bh_boot as Boot;
 			var t:uint;
 			var h:Function = function(ev:Event) : void {
 				if (ev.target is Main){
 					clearTimeout(t);
 					stage.removeEventListener(Event.ADDED, h);
+					stage.setChildIndex(_this, stage.numChildren - 1);
 					bhmain = ev.target as Main;
 					var h2:Function = function(ev:Event) : void {
 						if (getQualifiedClassName(ev.target) == "a_ScreenLoading") {
 							stage.removeEventListener(Event.ADDED, h2);
-							game = bhmain._bh_game;
+							game = bhmain._bh_mGame;
 							log("got Game: " + game);
 							console.visible = false;
 							register_mods();
@@ -138,29 +144,31 @@ package BML
 			}, 10000);
 			stage.addEventListener(Event.ADDED, h);
 			//stage.addChild(brawlhalla);
-			stage.addChildAt(brawlhalla, 0);
+			stage.addChildAt(bh_boot, 0);
 			
 		}
 		
 		private function load_mods() : void {
-			var md:File = File.applicationDirectory.resolvePath("mods");
-			mod_list = new Vector.<ModSprite>;
+			mods = {};// new Vector.<ModSprite>;
 			var n_mods:uint = 0;
 			var n_loaded:uint = 0;
-			var _this:ModLoader = this;
-			for each(var fl:File in md.getDirectoryListing()) {
+			for each(var fl:File in mod_dir.getDirectoryListing()) {
 				if (!fl.isDirectory && endsWith(fl.name, ".swf") && fl.name != "bml-core.swf") {
 					n_mods++;
-					(function() : void {
+					load_mod(fl, function(ms:ModSprite) : void {
+						if (++n_loaded == n_mods) load_brawlhalla();
+					});
+					/*(function() : void {
 						var cfl:File = fl;
 						log("Loading mod: " + cfl.name);
 						var cms:ModSprite;
-						launcher.transform_and_load(cfl, function(ms:ModSprite) : void {
+						launcher.transform_and_load(cfl, function(ms:ModSprite, l:Loader) : void {
 							mod_list.push(ms);
 							ms._ml = _this;
+							ms.loader = l;
 							ms._cinit();
 							cms = ms;
-							if (game) register(ms);
+							if (game) register_mod(ms);
 							n_loaded++;
 							if (n_loaded == n_mods) load_brawlhalla();
 						}, false, function(ev:UncaughtErrorEvent) : void {
@@ -169,21 +177,72 @@ package BML
 							log("Error in " + (cms != null ? cms.mod_name : cfl.name));
 							log((ev.error as Error).getStackTrace());
 						});
-					})();
+					})();*/
 				}
 			}
 			if (n_mods == 0) load_brawlhalla();
 		}
 		
+		internal function load_mod(fn:File, cb:Function) : void {
+			var _this:ModLoader = this;
+			log("Loading mod: " + fn.name);
+			var cms:ModSprite;
+			launcher.transform_and_load(fn, function(ms:ModSprite, l:Loader) : void {
+				if (ms.mod_name in mods) {
+					log("Mod not previously unloaded - unloading now");
+					unload_mod(mods[ms.mod_name]);
+				}
+				mods[ms.mod_name] = ms;
+				ms._ml = _this;
+				ms.loader = l;
+				ms.fn = fn;
+				ms._cinit();
+				cms = ms;
+				cb(ms);
+			}, false, function(ev:UncaughtErrorEvent) : void {
+				ev.preventDefault();
+				ev.stopPropagation();
+				log(cms == null ? "Error in loading " + fn.name : "Error in " + cms.mod_name);
+				log((ev.error as Error).getStackTrace());
+			});
+		}
+		
+		internal function load_mod_full(fn:File) : void {
+			load_mod(fn, register_mod);
+		}
+		
 		private function register_mods() : void {
-			for each(var m:ModSprite in mod_list) {
-				register(m);
+			for each(var m:ModSprite in mods) {
+				register_mod(m);
 			}
 		}
 
-		private function register(spr:ModSprite) : void {
+		internal function register_mod(spr:ModSprite) : void {
 			log("Registering mod: " + spr.mod_name);
 			addChild(spr);
+		}
+		
+		internal function unload_mod(spr:ModSprite) : void {
+			log("Unloading mod: " + spr.mod_name);
+			try {
+				spr._unload();
+			} catch (e:Error) {
+				log("Error unloading mod: " + spr.mod_name);
+			}
+			delete mods[spr.mod_name];
+			var l:Loader = spr.loader;
+			spr._ml = null;
+			spr.loader = null;
+			spr.fn = null;
+			l.unloadAndStop();
+			removeChild(spr);
+		}
+		
+		internal function reload_mod(spr:ModSprite) : void {
+			//log("Reloading mod: " + spr.mod_name);
+			var f:File = spr.fn;
+			unload_mod(spr);
+			load_mod_full(f);
 		}
 	}
 	

@@ -25,11 +25,13 @@ package BML
 		private var ml:ModLoader;
 		private var history:Vector.<String>;
 		private var prev_focus:InteractiveObject;
+		private var ch:CommandHandler;
 		
 		public function Console(ml:ModLoader) 
 		{
 			super();
 			this.ml = ml;
+			this.ch = new CommandHandler(ml);
 			output_tf = new CBTextField();
 			output_tf.textColor = 0xffffff;
 			output_tf.width = 800;
@@ -85,7 +87,7 @@ package BML
 			input_tf.width = output_tf.width;
 			input_tf.y = output_tf.height;
 			input_tf.defaultTextFormat = tf;
-			input_tf.height = input_tf.textHeight;
+			input_tf.height = input_tf.textHeight * 1.3;
 			input_tf.antiAliasType = AntiAliasType.ADVANCED;
 			input_tf.border = true;
 			input_tf.borderColor = 0x00ff00;
@@ -139,6 +141,9 @@ package BML
 					case Keyboard.F10:
 						sip = false;
 						break;
+					case Keyboard.ESCAPE:
+						kev.preventDefault();
+						break;
 					case Keyboard.C:
 					case Keyboard.X:
 					//case Keyboard.Z:
@@ -167,8 +172,23 @@ package BML
 			addEventListener(Event.ADDED_TO_STAGE, init);
 		}
 		
-		private function handle_cmd(cmd:String) : void {
-			ml.m_log("CMD", cmd);
+		private function handle_cmd(fs:String) : void {
+			var match:Object = /^\/([a-zA-Z_$][a-zA-Z0-9_$]*)(?: (.*))?$/.exec(fs);
+			if (match == null) return;
+			var cmd:String = match[1];
+			if (!(ch.cmd_exists(cmd))){
+				ml.m_log("Console", "Invalid command: " + cmd);
+				return;
+			}
+			var rest:String = match[2] || "";
+			var r:RegExp = /".*?"|(?:\\ |\S)+/g;
+			var im:Object;
+			var s:Vector.<String> = new Vector.<String>;
+			while ((match = r.exec(rest)) != null) {
+				s.push(match[0]);
+			}
+			ml.m_log("CMD", fs);
+			ch.handle(cmd, s);
 		}
 		
 		private function tb_select(ev:KeyboardEvent) : void {

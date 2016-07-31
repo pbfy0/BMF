@@ -3,7 +3,10 @@ package BML
 	import com.swfwire.decompiler.AsyncSWFReader;
 	import com.swfwire.decompiler.AsyncSWFWriter;
 	import com.swfwire.decompiler.SWFByteArray;
+	import com.swfwire.decompiler.abc.ABCByteArray;
 	import com.swfwire.decompiler.abc.ABCFile;
+	import com.swfwire.decompiler.abc.ABCReadResult;
+	import com.swfwire.decompiler.abc.ABCReader;
 	import com.swfwire.decompiler.abc.tokens.MultinameToken;
 	import com.swfwire.decompiler.abc.tokens.NamespaceToken;
 	import com.swfwire.decompiler.abc.tokens.StringToken;
@@ -11,6 +14,7 @@ package BML
 	import com.swfwire.decompiler.abc.tokens.multinames.MultinameQNameToken;
 	import com.swfwire.decompiler.data.swf.SWF;
 	import com.swfwire.decompiler.data.swf.tags.SWFTag;
+	import com.swfwire.decompiler.data.swf.tags.UnknownTag;
 	import com.swfwire.decompiler.data.swf9.tags.DoABCTag;
 	import com.swfwire.decompiler.events.AsyncSWFReaderEvent;
 	import com.swfwire.decompiler.events.AsyncSWFWriterEvent;
@@ -53,18 +57,21 @@ package BML
 		}
 		
 		private var log_f:FileStream;
-		internal var brawlhalla:MovieClip;
+		internal var bh_boot:MovieClip;
 		private var modloader:Sprite;
 		private var error_count:uint = 0;
 		private var swf_mod_date:Date;
 		private var cachedir:File;
 		private var cached_mods_ok:Boolean;
+		//private var mk_hack:MultiKeyboard;
 		
 		internal var resolver:BHResolver;
 		
 		private var log_onscreen:TextField;
 		private static var bhair_swf:File = File.applicationDirectory.resolvePath("BrawlhallaAir.swf");
 		private static var core_file:File = File.applicationDirectory.resolvePath("mods").resolvePath("bml-core.swf");
+		private static var deob_swf:File = File.applicationStorageDirectory.resolvePath("BrawlhallaAir.deob.swf");
+		//private static var builtin_types:Object = {"Object": 1, "Number": 1, "int": 1, "uint": 1, "Boolean": 1, "String": 1, "Array": 1, "Vector": 1, "Class": 1, "Date": 1, "QName": 1, "XML": 1, "XMLList": 1};
 		
 		public function Launcher() 
 		{
@@ -152,7 +159,7 @@ package BML
 			var _this:Launcher = this;
 			log("loading ModLoader");
 			
-			transform_and_load(core_file, function(core:Sprite) : void {
+			transform_and_load(core_file, function(core:Sprite, l:Loader) : void {
 				modloader = core;
 				modloader["launcher"] = _this;
 				stage.addChild(modloader);
@@ -164,7 +171,8 @@ package BML
 			var l:Loader = new Loader();
 			l.contentLoaderInfo.addEventListener(Event.COMPLETE, function(ev:Event) : void {
 				var li:LoaderInfo = ev.target as LoaderInfo;
-				brawlhalla = li.content as MovieClip;
+				bh_boot = li.content as MovieClip;
+				//log("Brawlhalla: " + brawlhalla);
 				cb();
 			});
 			var lc:LoaderContext = new LoaderContext();
@@ -211,7 +219,7 @@ package BML
 						stage.removeChild(log_onscreen);
 					}, 1000);
 					log("launching Brawlhalla...");
-					stage.addChildAt(brawlhalla, 0);
+					stage.addChildAt(bh_boot, 0);
 				});
 				return;
 			}
@@ -227,26 +235,39 @@ package BML
 		}
 		
 		private function internal_resolve_symbols(cb:Function) : void {
-			//log("Creating translation table");
+			log("Creating translation table");
 			var _this:Launcher = this;
-			//var fbh:File;
 			abc_mod(bhair_swf, function(abct:DoABCTag) : void {
-				if (abct.name == "merged") {
-					resolver.resolve(abct.abcFile);
+				//if (abct.name == "") {
+					resolver.addNames(abct.abcFile);
 					/*var f:File = deobfuscate_bh(abct.abcFile);
 					if (f != null) fbh = f;*/
 					//var r:BHResolver = new BHResolver(_this, abct.abcFile, name_mapping);
 					//r.resolve();
-					cb();
+				//}
+			}, function() : void {
+				resolver.load_from_json();
+				if (! deob_swf.exists) {
+					abc_mod(bhair_swf, function(abctt:DoABCTag) : void {
+						deobfuscate_bh(abctt.abcFile);
+						//log("abc \"" + abctt.name + "\" " + abctt.header.length + " " + abctt.abcFile);
+					}, function(bb:ByteArray) : void {
+						var fs:FileStream = new FileStream();
+						fs.open(deob_swf, FileMode.WRITE);
+						fs.writeBytes(bb);
+						fs.close();
+					});
 				}
-			}/*, function(b:ByteArray) : void {
+				cb();
+			});
+			/*, function(b:ByteArray) : void {
 				if(fbh != null){
 					var fs:FileStream = new FileStream();
 					fs.open(fbh, FileMode.WRITE);
 					fs.writeBytes(b);
 					fs.close();
 				}
-			}*/);
+			} */ 
 		}
 		
 		private function abc_mod(fn:File, mcb:Function, ccb:Function=null) : void {
@@ -257,19 +278,37 @@ package BML
 				var reader:AsyncSWFReader = new AsyncSWFReader();
 				reader.addEventListener(AsyncSWFReaderEvent.READ_COMPLETE, function(ev:AsyncSWFReaderEvent) : void {
 					var s:SWF = ev.result.swf;
-					for each(var t:SWFTag in s.tags) {
+					for (var ti:uint = 0; ti < s.tags.length; ti++) {
+						var t:SWFTag = s.tags[ti];
+						if (t.header.type == 72) { // DoABCDefine
+							var ut:UnknownTag = t as UnknownTag;
+							var abcr:ABCReader = new ABCReader();
+							var rr:ABCReadResult = abcr.read(new ABCByteArray(ut.content));
+							var nt:DoABCTag = new DoABCTag(0, "", rr.abcFile);
+							//nt.header = ut.header;
+							nt.header.type = 82; // DoABC2
+							nt.header.length = ut.header.length;
+							nt.header.forceLong = ut.header.forceLong;
+							t = nt;
+							s.tags[ti] = t;
+						}
+						//log("" + t + " " + t.header.type);
 						if (t is DoABCTag) {
 							var abct:DoABCTag = t as DoABCTag;
 							mcb(abct);
 						}
 					}
-					if(ccb is Function) {
-						var sw:AsyncSWFWriter = new AsyncSWFWriter();
-						sw.addEventListener(AsyncSWFWriterEvent.WRITE_COMPLETE, function(ev:AsyncSWFWriterEvent) : void {
-							var b:ByteArray = ev.result.bytes;
-							ccb(b);
-						});
-						sw.write(s);
+					if (ccb is Function) {
+						if(ccb.length == 1){
+							var sw:AsyncSWFWriter = new AsyncSWFWriter();
+							sw.addEventListener(AsyncSWFWriterEvent.WRITE_COMPLETE, function(ev:AsyncSWFWriterEvent) : void {
+								var b:ByteArray = ev.result.bytes;
+								ccb(b);
+							});
+							sw.write(s);
+						} else {
+							ccb();
+						}
 					}
 				});
 				reader.read(new SWFByteArray(d));
@@ -277,10 +316,8 @@ package BML
 			ul.load(new URLRequest(fn.url));
 		}
 		
-		private function deobfuscate_bh(abc:ABCFile) : File {
-			var dobf:File = File.applicationStorageDirectory.resolvePath("BrawlhallaAir.deob.swf");
-			if (dobf.exists) return null;
-			
+		private function deobfuscate_bh(abc:ABCFile) : void {
+			//log(""+abc.classCount);
 			var abc_tr:ABCToActionScript = new ABCToActionScript(abc);
 			var rm:ReadableMultiname = new ReadableMultiname();
 			var bst:StringToken = new StringToken("_bh_");
@@ -295,12 +332,13 @@ package BML
 				
 				if (d != null && "name" in d) {
 					var st:StringToken = abc.cpool.strings[d["name"]]
-					if (st.utf8.replace(/[^a-zA-Z]/g, "").length > 3 && "ns" in d && (d["ns"] as String) == ""){
+					if (st.utf8.replace(/[^a-zA-Z]/g, "").length > 3 && "ns" in d && (rm.namespace as String) == "" && st.utf8 in resolver.classes){ //&& !(st.utf8 in builtin_types) && st.utf8.substr(st.utf8.length - 5, 5) != "Error"){
 						d["ns"] = nsti;
 						continue;
 					}
 					var rev:Object = resolver.reverse_resolve(st.utf8);
 					if (rev == null) continue;
+					if(st.utf8 == "uint") log(st.utf8 + " -> " + rev.v);
 					switch(rev.t) {
 						case "t":
 							if ("ns" in d) d["ns"] = nsti;
@@ -312,7 +350,6 @@ package BML
 					}
 				}
 			}
-			return dobf;
 		}
 		
 		internal function transform_and_load(fn:File, callback:Function, core:Boolean = false, err_h:Function = null, resolver:IResolver = null) : void {
@@ -321,8 +358,9 @@ package BML
 			var loadBytes:Function = function(cc:ByteArray) : void {
 				var l:Loader = new Loader();
 				l.contentLoaderInfo.addEventListener(Event.COMPLETE, function(ev:Event) : void {
+					l.removeEventListener(Event.COMPLETE, arguments.callee);
 					var li:LoaderInfo = ev.target as LoaderInfo;
-					callback(li.content);
+					callback(li.content, l);
 				});
 				var lc:LoaderContext = new LoaderContext();
 				if (core) lc.applicationDomain = ApplicationDomain.currentDomain;
@@ -375,7 +413,7 @@ package BML
 					
 					if (d != null && "name" in d) {
 						var st:StringToken = abc.cpool.strings[d["name"]]
-						if (st.utf8.indexOf("_bh_") == 0){
+						if (st.utf8.substr(0, 4) == "_bh_"){
 							var n:String = st.utf8.substr(4);
 							//log("mapping var " + st.utf8 + " to " + resolver.resolve_var(n));
 							st.utf8 = resolver.resolve_var(n);
